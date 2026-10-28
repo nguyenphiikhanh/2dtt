@@ -1,0 +1,36 @@
+# Compiled class files & Build outputs
+*.class
+build/
+dist/
+out/
+target/
+
+# Logs
+*.log
+log/
+logs/
+
+# NetBeans specific
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# Other IDEs (IntelliJ, Eclipse, VS Code)
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# Java / JVM crash logs & temp files
+hs_err_pid*
+replay_pid*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+

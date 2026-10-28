@@ -1,0 +1,6 @@
+target/
+.env
+server.properties
+.idea/
+*.iml
+*.log

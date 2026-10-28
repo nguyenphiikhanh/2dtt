@@ -1,0 +1,6 @@
+# Copy file nay thanh server.properties, sau do sua thong tin database.
+server.host=0.0.0.0
+server.port=19130
+db.url=jdbc:mariadb://127.0.0.1:3306/tu_tien?useUnicode=true&characterEncoding=utf8&sslMode=disable
+db.user=tu_tien
+db.password=change-me
