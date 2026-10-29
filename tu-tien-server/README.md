@@ -29,11 +29,31 @@ GRANT ALL PRIVILEGES ON tu_tien.* TO 'tu_tien'@'localhost';
 
 Chỉnh file `server.properties` trong thư mục gốc server để cấu hình kết nối database và port. File này bị Git bỏ qua để không commit mật khẩu. Khi chia sẻ source, dùng `server.properties.example` làm mẫu. Biến môi trường cùng tên vẫn có thể ghi đè config file.
 
-Chạy server (PowerShell):
+Chạy server (PowerShell / Bash):
 
-```powershell
-cd E:\WORKSPACE\indie-dev\tu-tien-server
+```bash
+cd tu-tien-server
 mvn compile exec:java
+```
+
+## Chạy nhanh bằng Docker & Docker Compose
+
+Khởi động toàn bộ stack gồm `app` (tu-tien-server), `mariadb` (MariaDB 10), và `phpmyadmin` (web quản lý DB tại port 8080):
+
+```bash
+cd tu-tien-server
+docker compose up -d
+```
+
+- **Server WebSocket & HTTP static:** `ws://localhost:19130/game` và `http://localhost:19130/assets/...`
+- **phpMyAdmin:** `http://localhost:8080` (đã cấu hình tự động đăng nhập bằng tài khoản `root`)
+- **MariaDB:** `localhost:3306` (database: `tu_tien`)
+- Flyway migration tự động được thực thi ngay khi container `app` khởi động.
+
+Dừng toàn bộ dịch vụ:
+
+```bash
+docker compose down
 ```
 
 Khi chạy, Flyway tự áp dụng migration chưa chạy và ghi trạng thái vào bảng `flyway_schema_history`. Mỗi thay đổi schema tiếp theo cần tạo file mới theo dạng `V2__ten_thay_doi.sql`, `V3__...`; không sửa migration đã áp dụng trên môi trường dùng chung. Map KPAH được trích lại bằng `python tools/import_kpah_starter_data.py`.

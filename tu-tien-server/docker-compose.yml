@@ -1,0 +1,69 @@
+services:
+  mariadb:
+    image: mariadb:10
+    container_name: tu-tien-mariadb
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_DATABASE: tu_tien
+      MYSQL_USER: tu_tien
+      MYSQL_PASSWORD: change-me
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -uroot -proot1234 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - tu-tien-network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: tu-tien-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root1234
+      UPLOAD_LIMIT: 128M
+    ports:
+      - "8080:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - tu-tien-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tu-tien-server
+    restart: unless-stopped
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: 19130
+      DB_URL: "jdbc:mariadb://mariadb:3306/tu_tien?useUnicode=true&characterEncoding=utf8&sslMode=disable"
+      DB_USER: "tu_tien"
+      DB_PASSWORD: "change-me"
+    ports:
+      - "19130:19130"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - tu-tien-network
+
+volumes:
+  mariadb_data:
+    name: tu_tien_mariadb_data
+
+networks:
+  tu-tien-network:
+    name: tu_tien_network
