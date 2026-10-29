@@ -16,6 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
         autoCenter: Scale.CENTER_BOTH
     },
     parent: 'game-container',
+    pixelArt: true,
     backgroundColor: '#028af8',
     scene: [
         Boot,

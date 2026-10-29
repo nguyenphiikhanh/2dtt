@@ -1,19 +1,7 @@
 import { GameObjects, Scene } from 'phaser';
 
 import { EventBus } from '../EventBus';
-
-interface EnteredWorld {
-    characterId: number;
-    characterName: string;
-    cultivatorType: 'NAM_TU' | 'NU_TU';
-    spiritType: string;
-    mapId: number;
-    mapName: string;
-    x: number;
-    y: number;
-    mapWidth: number;
-    mapHeight: number;
-}
+import type { WorldPosition } from './Game';
 
 export class MainMenu extends Scene
 {
@@ -33,14 +21,14 @@ export class MainMenu extends Scene
 
         this.logo = this.add.image(512, 300, 'logo').setDepth(100);
 
-        this.title = this.add.text(512, 460, 'Vạn Linh Giới', {
-            fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
+        this.title = this.add.text(512, 460, 'Khí Phách Anh Hùng (KPAH H5)', {
+            fontFamily: 'sans-serif', fontSize: 32, color: '#f0dfb0',
+            stroke: '#17231e', strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         EventBus.emit('current-scene-ready', this);
-        const enterWorld = (world: EnteredWorld) => this.scene.start('Game', { world });
+        const enterWorld = (world: WorldPosition) => this.scene.start('Game', { world });
         EventBus.on('world-enter', enterWorld);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => EventBus.off('world-enter', enterWorld));
     }
@@ -68,7 +56,7 @@ export class MainMenu extends Scene
             {
                 this.logoTween.play();
             }
-        } 
+        }
         else
         {
             this.logoTween = this.tweens.add({

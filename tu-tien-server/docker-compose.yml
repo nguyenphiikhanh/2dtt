@@ -46,12 +46,6 @@ services:
       dockerfile: Dockerfile
     container_name: tu-tien-server
     restart: unless-stopped
-    environment:
-      SERVER_HOST: "0.0.0.0"
-      SERVER_PORT: 19130
-      DB_URL: "jdbc:mariadb://mariadb:3306/tu_tien?useUnicode=true&characterEncoding=utf8&sslMode=disable"
-      DB_USER: "tu_tien"
-      DB_PASSWORD: "change-me"
     ports:
       - "19130:19130"
     depends_on:

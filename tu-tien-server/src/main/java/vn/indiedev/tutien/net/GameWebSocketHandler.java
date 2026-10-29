@@ -129,10 +129,13 @@ final class GameWebSocketHandler extends SimpleChannelInboundHandler<TextWebSock
             return;
         }
         String name = request.path("name").asText("");
-        String cultivatorType = request.path("cultivatorType").asText("");
-        String spiritType = request.path("spiritType").asText("");
+        int classId = request.path("classId").asInt(0);
+        int gender = request.path("gender").asInt(request.has("cultivatorType") && "NU_TU".equalsIgnoreCase(request.path("cultivatorType").asText()) ? 2 : 1);
+        int headId = request.path("headId").asInt(0);
+        int nationId = request.path("nationId").asInt(0);
+
         submit(context, requestId, () -> {
-            CharacterProfile character = gameService.createCharacter(accountId, name, cultivatorType, spiritType);
+            CharacterProfile character = gameService.createCharacter(accountId, name, classId, gender, headId, nationId);
             ObjectNode response = JSON.createObjectNode()
                     .put("type", "character.created")
                     .put("requestId", requestId);

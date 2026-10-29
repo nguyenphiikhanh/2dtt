@@ -36,11 +36,11 @@ export class Preloader extends Scene
         this.load.json('kpah-map-105', gameAssetUrl('kpah/maps/105.json'));
         this.load.json('kpah-character-parts', gameAssetUrl('kpah/character-parts.json'));
         for (const type of [0, 1, 2, 3]) {
-            for (const partId of [0, 1]) {
+            for (const partId of [0, 1, 2, 3]) {
                 this.load.image(`kpah-cloth-${type}-${partId}`, gameAssetUrl(`kpah/character/cloth/${type}/${partId}.png`));
             }
         }
-        for (const treeId of [0, 13, 14, 15, 16, 17]) {
+        for (const treeId of [0, 1, 10, 11, 13, 14, 15, 16, 17]) {
             this.load.image(`kpah-tree-${treeId}`, gameAssetUrl(`kpah/maps/trees/${treeId}.png`));
         }
     }

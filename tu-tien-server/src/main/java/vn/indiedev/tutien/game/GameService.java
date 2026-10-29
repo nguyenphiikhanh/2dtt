@@ -8,7 +8,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
 
@@ -16,14 +15,10 @@ public final class GameService {
 
     private static final KpahStarterMap STARTER_MAP = KpahStarterMap.get();
     private static final int STARTER_MAP_ID = STARTER_MAP.id();
-    private static final int MAX_MOVE_STEP = 8;
+    private static final int MAX_MOVE_STEP = 24;
 
     private static final Pattern USERNAME_PATTERN = Pattern.compile("[a-zA-Z0-9_]{3,24}");
     private static final Pattern CHARACTER_NAME_PATTERN = Pattern.compile("[\\p{L}\\p{N}_]{3,18}");
-    private static final Set<String> CULTIVATOR_TYPES = Set.of("NAM_TU", "NU_TU");
-    private static final Set<String> SPIRIT_TYPES = Set.of("THANH_LONG", "BACH_HO", "HUYEN_VU", "CHU_TUOC");
-    private static final String[] MALE_STARTER_ITEMS = {"2", "28", "4", "30"};
-    private static final String[] FEMALE_STARTER_ITEMS = {"1", "27", "3", "29"};
     private static final int MAX_CHARACTERS = 3;
 
     private final DataSource dataSource;
@@ -83,7 +78,7 @@ public final class GameService {
     public WorldPosition enterWorld(long accountId, long characterId) throws SQLException, GameException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(
-                     "SELECT id, name, cultivator_type, spirit_type, current_map_id, position_x, position_y "
+                     "SELECT id, name, class_id, gender, head_id, nation_id, current_map_id, position_x, position_y "
                              + "FROM characters WHERE id = ? AND account_id = ?")) {
             statement.setLong(1, characterId);
             statement.setLong(2, accountId);
@@ -95,10 +90,21 @@ public final class GameService {
                 if (mapId != STARTER_MAP_ID) {
                     throw new GameException("map_not_found", "Bản đồ hiện tại chưa được mở.");
                 }
-                return new WorldPosition(row.getLong("id"), row.getString("name"),
-                        row.getString("cultivator_type"), row.getString("spirit_type"), mapId,
-                        STARTER_MAP.name(), row.getInt("position_x"), row.getInt("position_y"),
-                        STARTER_MAP.pixelWidth(), STARTER_MAP.pixelHeight());
+                int classId = row.getInt("class_id");
+                return new WorldPosition(
+                        row.getLong("id"),
+                        row.getString("name"),
+                        classId,
+                        KpahConstants.getClassName(classId),
+                        row.getInt("gender"),
+                        row.getInt("head_id"),
+                        row.getInt("nation_id"),
+                        mapId,
+                        STARTER_MAP.name(),
+                        row.getInt("position_x"),
+                        row.getInt("position_y"),
+                        STARTER_MAP.pixelWidth(),
+                        STARTER_MAP.pixelHeight());
             }
         }
     }
@@ -113,7 +119,7 @@ public final class GameService {
             try {
                 WorldPosition current;
                 try (PreparedStatement statement = connection.prepareStatement(
-                        "SELECT id, name, cultivator_type, spirit_type, current_map_id, position_x, position_y "
+                        "SELECT id, name, class_id, gender, head_id, nation_id, current_map_id, position_x, position_y "
                                 + "FROM characters WHERE id = ? AND account_id = ? FOR UPDATE")) {
                     statement.setLong(1, characterId);
                     statement.setLong(2, accountId);
@@ -125,10 +131,21 @@ public final class GameService {
                         if (mapId != STARTER_MAP_ID) {
                             throw new GameException("map_not_found", "Bản đồ hiện tại chưa được mở.");
                         }
-                        current = new WorldPosition(row.getLong("id"), row.getString("name"),
-                                row.getString("cultivator_type"), row.getString("spirit_type"), mapId,
-                                STARTER_MAP.name(), row.getInt("position_x"), row.getInt("position_y"),
-                                STARTER_MAP.pixelWidth(), STARTER_MAP.pixelHeight());
+                        int classId = row.getInt("class_id");
+                        current = new WorldPosition(
+                                row.getLong("id"),
+                                row.getString("name"),
+                                classId,
+                                KpahConstants.getClassName(classId),
+                                row.getInt("gender"),
+                                row.getInt("head_id"),
+                                row.getInt("nation_id"),
+                                mapId,
+                                STARTER_MAP.name(),
+                                row.getInt("position_x"),
+                                row.getInt("position_y"),
+                                STARTER_MAP.pixelWidth(),
+                                STARTER_MAP.pixelHeight());
                     }
                 }
                 int x = current.x() + dx;
@@ -146,9 +163,20 @@ public final class GameService {
                     update.executeUpdate();
                 }
                 connection.commit();
-                return new WorldPosition(current.characterId(), current.characterName(), current.cultivatorType(),
-                        current.spiritType(), current.mapId(), current.mapName(), x, y,
-                        current.mapWidth(), current.mapHeight());
+                return new WorldPosition(
+                        current.characterId(),
+                        current.characterName(),
+                        current.classId(),
+                        current.className(),
+                        current.gender(),
+                        current.headId(),
+                        current.nationId(),
+                        current.mapId(),
+                        current.mapName(),
+                        x,
+                        y,
+                        current.mapWidth(),
+                        current.mapHeight());
             } catch (SQLException | GameException exception) {
                 connection.rollback();
                 throw exception;
@@ -158,19 +186,24 @@ public final class GameService {
         }
     }
 
-    public CharacterProfile createCharacter(long accountId, String name,
-                                             String cultivatorType, String spiritType)
+    public CharacterProfile createCharacter(long accountId, String name, int classId, int gender, int headId, int nationId)
             throws SQLException, GameException {
         String safeName = name == null ? "" : name.strip();
         if (!CHARACTER_NAME_PATTERN.matcher(safeName).matches()) {
             throw new GameException("invalid_character_name", "Tên nhân vật cần dài 3–18 ký tự, chỉ gồm chữ, số hoặc gạch dưới.");
         }
-        if (!CULTIVATOR_TYPES.contains(cultivatorType)) {
-            throw new GameException("invalid_cultivator_type", "Hãy chọn Nam Tu hoặc Nữ Tu.");
+        if (classId < 0 || classId > 4) {
+            throw new GameException("invalid_class", "Vui lòng chọn 1 trong 5 môn phái KPAH.");
         }
-        if (!SPIRIT_TYPES.contains(spiritType)) {
-            throw new GameException("invalid_spirit_type", "Linh thể đã chọn không hợp lệ.");
+        if (gender != 1 && gender != 2) {
+            throw new GameException("invalid_gender", "Vui lòng chọn giới tính Nam hoặc Nữ.");
         }
+        if (nationId < 0 || nationId > 2) {
+            throw new GameException("invalid_nation", "Vui lòng chọn 1 trong 3 Quốc gia (Đông Sơn, Nam Sơn, Bắc Sơn).");
+        }
+
+        int[] stats = KpahConstants.getStarterStats(classId);
+        int elementId = KpahConstants.getElement(classId);
 
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
@@ -198,13 +231,24 @@ public final class GameService {
 
                 long characterId;
                 try (PreparedStatement insert = connection.prepareStatement(
-                        "INSERT INTO characters (account_id, name, cultivator_type, spirit_type, current_map_id, position_x, position_y) "
-                                + "VALUES (?, ?, ?, ?, 105, 184, 280)",
+                        "INSERT INTO characters ("
+                                + "account_id, name, class_id, gender, head_id, nation_id, element_id, "
+                                + "level, strength, agility, spirit, health, luck, base_points, skill_points, "
+                                + "exp, hp, max_hp, mp, max_mp, xu, luong, luong_khoa, current_map_id, position_x, position_y) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0, 0, 0, 100, 100, 100, 100, 10000, 0, 0, 105, 184, 280)",
                         Statement.RETURN_GENERATED_KEYS)) {
                     insert.setLong(1, accountId);
                     insert.setString(2, safeName);
-                    insert.setString(3, cultivatorType);
-                    insert.setString(4, spiritType);
+                    insert.setInt(3, classId);
+                    insert.setInt(4, gender);
+                    insert.setInt(5, headId);
+                    insert.setInt(6, nationId);
+                    insert.setInt(7, elementId);
+                    insert.setInt(8, stats[0]); // strength
+                    insert.setInt(9, stats[1]); // agility
+                    insert.setInt(10, stats[2]); // spirit
+                    insert.setInt(11, stats[3]); // health
+                    insert.setInt(12, stats[4]); // luck
                     insert.executeUpdate();
                     try (ResultSet keys = insert.getGeneratedKeys()) {
                         if (!keys.next()) {
@@ -213,9 +257,38 @@ public final class GameService {
                         characterId = keys.getLong(1);
                     }
                 }
-                createStarterItems(connection, characterId, cultivatorType);
-                CharacterProfile createdCharacter = new CharacterProfile(characterId, safeName,
-                        cultivatorType, spiritType, "MORTAL", 1, listCharacterItems(connection, characterId));
+
+                createStarterItemsKpah(connection, characterId, classId, gender);
+
+                CharacterProfile createdCharacter = new CharacterProfile(
+                        characterId,
+                        safeName,
+                        classId,
+                        KpahConstants.getClassName(classId),
+                        gender,
+                        headId,
+                        nationId,
+                        KpahConstants.getNationName(nationId),
+                        elementId,
+                        KpahConstants.getElementName(elementId),
+                        1,
+                        stats[0],
+                        stats[1],
+                        stats[2],
+                        stats[3],
+                        stats[4],
+                        0,
+                        0,
+                        0,
+                        100,
+                        100,
+                        100,
+                        100,
+                        10000,
+                        0,
+                        0,
+                        listCharacterItems(connection, characterId));
+
                 connection.commit();
                 return createdCharacter;
             } catch (SQLException | GameException e) {
@@ -230,28 +303,93 @@ public final class GameService {
         }
     }
 
-    private List<CharacterProfile> listCharacters(Connection connection, long accountId) throws SQLException {
-        List<CharacterRow> rowsToLoad = new ArrayList<>();
+    private void createStarterItemsKpah(Connection connection, long characterId, int classId, int gender) throws SQLException {
+        int shirtId = gender == KpahConstants.GENDER_FEMALE ? 1 : 2;     // Áo bà ba hoặc Áo nhập môn
+        int pantsId = gender == KpahConstants.GENDER_FEMALE ? 27 : 28;  // Quần bà ba hoặc Quần nhập môn
+        int weaponId = KpahConstants.getStarterWeaponId(classId);       // Vũ khí theo phái KPAH
+
+        int extraShirtId = gender == KpahConstants.GENDER_FEMALE ? 3 : 4;  // Áo đai thô
+        int extraPantsId = gender == KpahConstants.GENDER_FEMALE ? 29 : 30; // Quần đai thô
+
+        int[] equippedTemplates = {shirtId, pantsId, weaponId};
+        String[] slots = {"SHIRT", "PANTS", "WEAPON"};
+
+        try (PreparedStatement insertItem = connection.prepareStatement(
+                "INSERT INTO character_items (character_id, template_id) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS);
+             PreparedStatement equipItem = connection.prepareStatement(
+                     "INSERT INTO character_equipment (character_id, slot_code, item_instance_id) VALUES (?, ?, ?)")) {
+
+            // Thêm và mặc các món trang bị khởi đầu
+            for (int i = 0; i < equippedTemplates.length; i++) {
+                insertItem.setLong(1, characterId);
+                insertItem.setInt(2, equippedTemplates[i]);
+                insertItem.executeUpdate();
+                try (ResultSet keys = insertItem.getGeneratedKeys()) {
+                    if (keys.next()) {
+                        long itemId = keys.getLong(1);
+                        equipItem.setLong(1, characterId);
+                        equipItem.setString(2, slots[i]);
+                        equipItem.setLong(3, itemId);
+                        equipItem.executeUpdate();
+                    }
+                }
+            }
+
+            // Thêm các món trang bị dự phòng vào túi đồ (chưa mặc)
+            int[] bagTemplates = {extraShirtId, extraPantsId};
+            for (int templateId : bagTemplates) {
+                insertItem.setLong(1, characterId);
+                insertItem.setInt(2, templateId);
+                insertItem.executeUpdate();
+            }
+        }
+    }
+
+    public List<CharacterProfile> listCharacters(Connection connection, long accountId) throws SQLException {
+        List<CharacterProfile> characters = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT id, name, cultivator_type, spirit_type, realm_code, level "
+                "SELECT id, name, class_id, gender, head_id, nation_id, element_id, level, "
+                        + "strength, agility, spirit, health, luck, base_points, skill_points, exp, "
+                        + "hp, max_hp, mp, max_mp, xu, luong, luong_khoa "
                         + "FROM characters WHERE account_id = ? ORDER BY id")) {
             statement.setLong(1, accountId);
             try (ResultSet rows = statement.executeQuery()) {
                 while (rows.next()) {
-                    rowsToLoad.add(new CharacterRow(
-                            rows.getLong("id"),
+                    long id = rows.getLong("id");
+                    int classId = rows.getInt("class_id");
+                    int nationId = rows.getInt("nation_id");
+                    int elementId = rows.getInt("element_id");
+
+                    characters.add(new CharacterProfile(
+                            id,
                             rows.getString("name"),
-                            rows.getString("cultivator_type"),
-                            rows.getString("spirit_type"),
-                            rows.getString("realm_code"),
-                            rows.getInt("level")));
+                            classId,
+                            KpahConstants.getClassName(classId),
+                            rows.getInt("gender"),
+                            rows.getInt("head_id"),
+                            nationId,
+                            KpahConstants.getNationName(nationId),
+                            elementId,
+                            KpahConstants.getElementName(elementId),
+                            rows.getInt("level"),
+                            rows.getInt("strength"),
+                            rows.getInt("agility"),
+                            rows.getInt("spirit"),
+                            rows.getInt("health"),
+                            rows.getInt("luck"),
+                            rows.getInt("base_points"),
+                            rows.getInt("skill_points"),
+                            rows.getLong("exp"),
+                            rows.getInt("hp"),
+                            rows.getInt("max_hp"),
+                            rows.getInt("mp"),
+                            rows.getInt("max_mp"),
+                            rows.getLong("xu"),
+                            rows.getInt("luong"),
+                            rows.getInt("luong_khoa"),
+                            listCharacterItems(connection, id)));
                 }
             }
-        }
-        List<CharacterProfile> characters = new ArrayList<>(rowsToLoad.size());
-        for (CharacterRow row : rowsToLoad) {
-            characters.add(new CharacterProfile(row.id(), row.name(), row.cultivatorType(),
-                    row.spiritType(), row.realmCode(), row.level(), listCharacterItems(connection, row.id())));
         }
         return characters;
     }
@@ -261,42 +399,47 @@ public final class GameService {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                String cultivatorType;
-                int characterLevel;
-                try (PreparedStatement character = connection.prepareStatement(
-                        "SELECT cultivator_type, level FROM characters WHERE id = ? AND account_id = ? FOR UPDATE")) {
-                    character.setLong(1, characterId);
-                    character.setLong(2, accountId);
-                    try (ResultSet row = character.executeQuery()) {
-                        if (!row.next()) {
-                            throw new GameException("character_not_found", "Không tìm thấy nhân vật thuộc tài khoản này.");
-                        }
-                        cultivatorType = row.getString("cultivator_type");
-                        characterLevel = row.getInt("level");
-                    }
-                }
-
                 String slot;
                 int requiredLevel;
-                String requiredGender;
-                try (PreparedStatement item = connection.prepareStatement(
-                        "SELECT t.slot_code, t.required_level, t.gender_type "
-                                + "FROM character_items i JOIN equipment_templates t ON t.template_id = i.template_id "
+                String genderType;
+                try (PreparedStatement query = connection.prepareStatement(
+                        "SELECT t.slot_code, t.required_level, t.gender_type FROM character_items i "
+                                + "JOIN equipment_templates t ON t.template_id = i.template_id "
                                 + "WHERE i.id = ? AND i.character_id = ?")) {
-                    item.setLong(1, itemId);
-                    item.setLong(2, characterId);
-                    try (ResultSet row = item.executeQuery()) {
+                    query.setLong(1, itemId);
+                    query.setLong(2, characterId);
+                    try (ResultSet row = query.executeQuery()) {
                         if (!row.next()) {
-                            throw new GameException("item_not_found", "Trang bị không nằm trong hành trang nhân vật.");
+                            throw new GameException("item_not_found", "Vật phẩm không tồn tại trong hành trang.");
                         }
                         slot = row.getString("slot_code");
                         requiredLevel = row.getInt("required_level");
-                        requiredGender = row.getString("gender_type");
+                        genderType = row.getString("gender_type");
                     }
                 }
 
-                if (!cultivatorType.equals(requiredGender)) {
-                    throw new GameException("wrong_gender", "Trang bị này không phù hợp với nhân vật.");
+                int characterLevel;
+                int characterGender;
+                try (PreparedStatement query = connection.prepareStatement(
+                        "SELECT level, gender FROM characters WHERE id = ? AND account_id = ?")) {
+                    query.setLong(1, characterId);
+                    query.setLong(2, accountId);
+                    try (ResultSet row = query.executeQuery()) {
+                        if (!row.next()) {
+                            throw new GameException("character_not_found", "Không tìm thấy nhân vật.");
+                        }
+                        characterLevel = row.getInt("level");
+                        characterGender = row.getInt("gender");
+                    }
+                }
+
+                if (!"ALL".equalsIgnoreCase(genderType)) {
+                    if (characterGender == KpahConstants.GENDER_FEMALE && "NAM_TU".equalsIgnoreCase(genderType)) {
+                        throw new GameException("gender_mismatch", "Trang bị này chỉ dành cho Nam.");
+                    }
+                    if (characterGender == KpahConstants.GENDER_MALE && "NU_TU".equalsIgnoreCase(genderType)) {
+                        throw new GameException("gender_mismatch", "Trang bị này chỉ dành cho Nữ.");
+                    }
                 }
                 if (characterLevel < requiredLevel) {
                     throw new GameException("level_required", "Nhân vật chưa đủ cấp để mặc trang bị này.");
@@ -310,20 +453,50 @@ public final class GameService {
                     equip.setLong(3, itemId);
                     equip.executeUpdate();
                 }
-                CharacterProfile updatedCharacter;
-                try (PreparedStatement character = connection.prepareStatement(
-                        "SELECT id, name, cultivator_type, spirit_type, realm_code, level FROM characters "
-                                + "WHERE id = ? AND account_id = ?")) {
-                    character.setLong(1, characterId);
-                    character.setLong(2, accountId);
-                    try (ResultSet row = character.executeQuery()) {
-                        if (!row.next()) {
-                            throw new GameException("character_not_found", "Không tìm thấy nhân vật thuộc tài khoản này.");
+
+                CharacterProfile updatedCharacter = null;
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT id, name, class_id, gender, head_id, nation_id, element_id, level, "
+                                + "strength, agility, spirit, health, luck, base_points, skill_points, exp, "
+                                + "hp, max_hp, mp, max_mp, xu, luong, luong_khoa "
+                                + "FROM characters WHERE id = ? AND account_id = ?")) {
+                    statement.setLong(1, characterId);
+                    statement.setLong(2, accountId);
+                    try (ResultSet rows = statement.executeQuery()) {
+                        if (rows.next()) {
+                            int classId = rows.getInt("class_id");
+                            int nationId = rows.getInt("nation_id");
+                            int elementId = rows.getInt("element_id");
+
+                            updatedCharacter = new CharacterProfile(
+                                    characterId,
+                                    rows.getString("name"),
+                                    classId,
+                                    KpahConstants.getClassName(classId),
+                                    rows.getInt("gender"),
+                                    rows.getInt("head_id"),
+                                    nationId,
+                                    KpahConstants.getNationName(nationId),
+                                    elementId,
+                                    KpahConstants.getElementName(elementId),
+                                    rows.getInt("level"),
+                                    rows.getInt("strength"),
+                                    rows.getInt("agility"),
+                                    rows.getInt("spirit"),
+                                    rows.getInt("health"),
+                                    rows.getInt("luck"),
+                                    rows.getInt("base_points"),
+                                    rows.getInt("skill_points"),
+                                    rows.getLong("exp"),
+                                    rows.getInt("hp"),
+                                    rows.getInt("max_hp"),
+                                    rows.getInt("mp"),
+                                    rows.getInt("max_mp"),
+                                    rows.getLong("xu"),
+                                    rows.getInt("luong"),
+                                    rows.getInt("luong_khoa"),
+                                    listCharacterItems(connection, characterId));
                         }
-                        updatedCharacter = new CharacterProfile(row.getLong("id"), row.getString("name"),
-                                row.getString("cultivator_type"), row.getString("spirit_type"),
-                                row.getString("realm_code"), row.getInt("level"),
-                                listCharacterItems(connection, characterId));
                     }
                 }
                 connection.commit();
@@ -333,32 +506,6 @@ public final class GameService {
                 throw exception;
             } finally {
                 connection.setAutoCommit(true);
-            }
-        }
-    }
-
-    private void createStarterItems(Connection connection, long characterId, String cultivatorType) throws SQLException {
-        String[] templateIds = "NAM_TU".equals(cultivatorType) ? MALE_STARTER_ITEMS : FEMALE_STARTER_ITEMS;
-        try (PreparedStatement insertItem = connection.prepareStatement(
-                "INSERT INTO character_items (character_id, template_id) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS);
-             PreparedStatement equipItem = connection.prepareStatement(
-                     "INSERT INTO character_equipment (character_id, slot_code, item_instance_id) VALUES (?, ?, ?)")) {
-            for (int index = 0; index < templateIds.length; index++) {
-                int templateId = Integer.parseInt(templateIds[index]);
-                insertItem.setLong(1, characterId);
-                insertItem.setInt(2, templateId);
-                insertItem.executeUpdate();
-                try (ResultSet generatedKeys = insertItem.getGeneratedKeys()) {
-                    if (!generatedKeys.next()) {
-                        throw new SQLException("Starter item insert returned no generated id");
-                    }
-                    if (index < 2) {
-                        equipItem.setLong(1, characterId);
-                        equipItem.setString(2, index == 0 ? "SHIRT" : "PANTS");
-                        equipItem.setLong(3, generatedKeys.getLong(1));
-                        equipItem.executeUpdate();
-                    }
-                }
             }
         }
     }
@@ -400,9 +547,5 @@ public final class GameService {
 
     private GameException invalidCredentials() {
         return new GameException("invalid_credentials", "Tài khoản hoặc mật khẩu không chính xác.");
-    }
-
-    private record CharacterRow(long id, String name, String cultivatorType, String spiritType,
-                                String realmCode, int level) {
     }
 }
